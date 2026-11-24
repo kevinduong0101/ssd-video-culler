@@ -1,0 +1,1964 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Video Culler</title>
+  <style>
+    :root {
+      --bg-light: #f7f7f8;
+      --bg-dark: #0b0c0e;
+      --surface-light: #ffffff;
+      --surface-dark: #131519;
+      --surface2-light: #ededf0;
+      --surface2-dark: #1c1f26;
+      --border-light: rgba(0, 0, 0, 0.09);
+      --border-dark: rgba(255, 255, 255, 0.08);
+      --border-strong-light: rgba(0, 0, 0, 0.16);
+      --border-strong-dark: rgba(255, 255, 255, 0.16);
+      --text-light: #111318;
+      --text-dark: #f1f3f5;
+      --muted-light: #636a75;
+      --muted-dark: #8a93a2;
+      --accent-light: #059669;
+      --accent-dark: #10b981;
+      --accent-fg-light: #ffffff;
+      --accent-fg-dark: #042619;
+      --accent-soft-light: rgba(5, 150, 105, 0.12);
+      --accent-soft-dark: rgba(16, 185, 129, 0.15);
+      --scroll-thumb-light: #9ca3af;
+      --scroll-thumb-dark: #4b5563;
+      --scroll-track-light: #f3f4f6;
+      --scroll-track-dark: #0f1115;
+
+      --bg: var(--bg-light);
+      --surface: var(--surface-light);
+      --surface2: var(--surface2-light);
+      --border: var(--border-light);
+      --border-strong: var(--border-strong-light);
+      --text: var(--text-light);
+      --muted: var(--muted-light);
+      --accent: var(--accent-light);
+      --accent-fg: var(--accent-fg-light);
+      --accent-soft: var(--accent-soft-light);
+      --scroll-thumb: var(--scroll-thumb-light);
+      --scroll-track: var(--scroll-track-light);
+
+      @media (prefers-color-scheme: dark) {
+        --bg: var(--bg-dark);
+        --surface: var(--surface-dark);
+        --surface2: var(--surface2-dark);
+        --border: var(--border-dark);
+        --border-strong: var(--border-strong-dark);
+        --text: var(--text-dark);
+        --muted: var(--muted-dark);
+        --accent: var(--accent-dark);
+        --accent-fg: var(--accent-fg-dark);
+        --accent-soft: var(--accent-soft-dark);
+        --scroll-thumb: var(--scroll-thumb-dark);
+        --scroll-track: var(--scroll-track-dark);
+      }
+
+      @supports (color: light-dark(white, black)) {
+        --bg: light-dark(var(--bg-light), var(--bg-dark));
+        --surface: light-dark(var(--surface-light), var(--surface-dark));
+        --surface2: light-dark(var(--surface2-light), var(--surface2-dark));
+        --border: light-dark(var(--border-light), var(--border-dark));
+        --border-strong: light-dark(var(--border-strong-light), var(--border-strong-dark));
+        --text: light-dark(var(--text-light), var(--text-dark));
+        --muted: light-dark(var(--muted-light), var(--muted-dark));
+        --accent: light-dark(var(--accent-light), var(--accent-dark));
+        --accent-fg: light-dark(var(--accent-fg-light), var(--accent-fg-dark));
+        --accent-soft: light-dark(var(--accent-soft-light), var(--accent-soft-dark));
+        --scroll-thumb: light-dark(var(--scroll-thumb-light), var(--scroll-thumb-dark));
+        --scroll-track: light-dark(var(--scroll-track-light), var(--scroll-track-dark));
+      }
+
+      color-scheme: light dark;
+      accent-color: var(--accent);
+      scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+    }
+
+    @supports not (scrollbar-color: auto) {
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); }
+      ::-webkit-scrollbar-track { background: var(--scroll-track); }
+    }
+
+    html {
+      container-type: scroll-state;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.4;
+      letter-spacing: -0.01em;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Compact single-row persistent header (<12% viewport height) */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      min-height: 48px;
+      padding: 8px 16px;
+      background: color-mix(in srgb, var(--bg) 84%, transparent);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.2s ease;
+    }
+
+    @container scroll-state((scrolled: bottom) and (scrollable: top)) {
+      .topbar {
+        transform: translateY(-100%);
+      }
+    }
+    .topbar:focus-within,
+    .topbar.keep-visible {
+      transform: none;
+    }
+    .topbar.is-hidden:not(:focus-within):not(.keep-visible) {
+      transform: translateY(-100%);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .topbar { transition: none; }
+    }
+
+    search.filter-bar {
+      display: contents;
+    }
+
+    input[type="text"],
+    input[type="search"],
+    select {
+      height: 32px;
+      padding: 0 10px;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+      font-size: 12.5px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    select {
+      padding-right: 22px;
+      max-width: 164px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    input[type="search"] {
+      flex: 1 1 90px;
+      max-width: 175px;
+      min-width: 90px;
+    }
+
+    input:focus-visible,
+    select:focus-visible,
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    button {
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    button:hover {
+      border-color: var(--border-strong);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: transparent;
+      color: var(--muted);
+      padding: 0 8px;
+    }
+    .btn-ghost:hover {
+      background: var(--surface2);
+      border-color: transparent;
+      color: var(--text);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.07);
+      border-color: transparent;
+    }
+
+    .path-pill {
+      max-width: 185px;
+      padding: 0 9px;
+      font-weight: 500;
+      color: var(--text);
+      background: var(--surface);
+    }
+    .path-pill span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .path-arrow {
+      color: var(--muted);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .seg {
+      display: inline-flex;
+      padding: 2px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      height: 32px;
+      align-items: center;
+    }
+    .seg button {
+      height: 26px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .seg button:hover {
+      color: var(--text);
+    }
+    .seg button.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+    }
+
+    .size-range-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .size-range-wrap input[type="text"] {
+      width: 58px;
+      padding: 0 8px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .topbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stats {
+      font-size: 12px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .badge-queue {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+
+    /* Secondary Popovers (Paths & Multi-Folder Filter) */
+    .anchored-popover {
+      padding: 14px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+      gap: 10px;
+    }
+
+    @supports (position-area: block-end) {
+      [popover].anchored-popover {
+        inset: auto;
+        margin: 6px 0 0 0;
+        position-area: block-end span-inline-end;
+        position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+      }
+    }
+
+    @supports not (position-area: block-end) {
+      #pathsPopover { margin: 56px auto auto 16px; }
+      #foldersPopover { margin: 56px auto auto 220px; }
+    }
+
+    #pathsPopover {
+      width: min(560px, calc(100vw - 32px));
+    }
+
+    #foldersPopover {
+      width: min(440px, calc(100vw - 32px));
+      max-height: min(74vh, 520px);
+      grid-template-rows: auto auto 1fr;
+    }
+
+    #folderFilterBtn {
+      max-width: 190px;
+    }
+    #folderFilterBtn.has-rules {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .folder-pop-head {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .folder-pop-head input[type="search"] {
+      flex: 1;
+      max-width: none;
+    }
+
+    .folder-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      max-height: 84px;
+      overflow-y: auto;
+    }
+    .f-chip {
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 500;
+      border: 0;
+      max-width: 200px;
+    }
+    .f-chip span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .f-chip.is-inc {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .f-chip.is-exc {
+      background: rgba(239, 68, 68, 0.16);
+      color: #f87171;
+    }
+
+    .folder-list {
+      overflow-y: auto;
+      overflow-x: hidden;
+      max-height: 350px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2px;
+      padding-right: 2px;
+    }
+    .folder-sec-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      padding: 6px 6px 2px;
+    }
+    .folder-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+    .folder-inc-btn {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      height: 30px;
+      padding: 0 8px;
+      justify-content: flex-start;
+      background: transparent;
+      border-color: transparent;
+      font-weight: 400;
+    }
+    .folder-inc-btn:hover {
+      background: var(--surface2);
+      border-color: transparent;
+    }
+    .folder-inc-btn[aria-pressed="true"] {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .folder-row.is-excluded .folder-name {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+    .folder-mark {
+      width: 14px;
+      font-size: 11px;
+      color: var(--muted);
+      flex-shrink: 0;
+      text-align: center;
+    }
+    .folder-inc-btn[aria-pressed="true"] .folder-mark {
+      color: var(--accent);
+    }
+    .folder-name {
+      flex: 1;
+      min-width: 0;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .folder-cnt {
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .folder-exc-btn {
+      height: 26px;
+      padding: 0 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      background: transparent;
+      border-color: transparent;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .folder-exc-btn:hover {
+      background: rgba(239, 68, 68, 0.14);
+      color: #f87171;
+      border-color: transparent;
+    }
+    .folder-exc-btn[aria-pressed="true"] {
+      background: rgba(239, 68, 68, 0.18);
+      color: #f87171;
+      font-weight: 600;
+    }
+
+    [popover]:is(:popover-open, .\:popover-open) {
+      display: grid;
+    }
+    @supports not selector(:popover-open) {
+      [popover]:not(.\:popover-open) {
+        display: none;
+      }
+    }
+
+    .popover-field {
+      display: grid;
+      gap: 6px;
+    }
+    .popover-field label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .popover-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .popover-row input[type="text"] {
+      flex: 1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
+
+    /* Minimal Studio Contact-Sheet Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(264px, 1fr));
+      gap: 20px 16px;
+      padding: 20px;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: transparent;
+    }
+
+    /* Below-the-fold cards only */
+    .card-deferred {
+      content-visibility: auto;
+      contain-intrinsic-size: auto none auto 220px;
+    }
+
+    .thumb-wrap {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: 10px;
+      background: var(--surface);
+      box-shadow: inset 0 0 0 1px var(--border);
+      cursor: pointer;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .thumb-wrap img.thumb-missing {
+      opacity: 0;
+    }
+    .thumb-wrap:has(img.thumb-missing)::after {
+      content: "▶";
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 20px;
+      pointer-events: none;
+    }
+
+    .card.is-copied .thumb-wrap {
+      box-shadow: 0 0 0 2px var(--accent);
+    }
+
+    .thumb-wrap img,
+    .thumb-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .thumb-wrap img {
+      transition: transform 0.25s ease;
+    }
+    .thumb-wrap:hover img {
+      transform: scale(1.015);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .thumb-wrap img { transition: none; }
+      .thumb-wrap:hover img { transform: none; }
+    }
+
+    .thumb-wrap video {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .pill-size,
+    .pill-copied {
+      position: absolute;
+      top: 8px;
+      z-index: 2;
+      font-size: 11px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      padding: 2px 7px;
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    .pill-size {
+      right: 8px;
+      background: rgba(10, 12, 16, 0.66);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .pill-copied {
+      left: 8px;
+      background: var(--accent);
+      color: var(--accent-fg);
+    }
+
+    .scrub-bar {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      z-index: 2;
+      height: 2.5px;
+      width: 0%;
+      background: var(--accent);
+      pointer-events: none;
+    }
+
+    .card-body {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 2px;
+    }
+
+    .meta {
+      min-width: 0;
+      flex: 1;
+    }
+    .meta-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .meta-folder {
+      font-size: 11.5px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .copy-btn {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .copy-btn:hover {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: transparent;
+    }
+
+    .card.is-copied .copy-btn {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: transparent;
+      font-weight: 600;
+    }
+
+    .undo-mini {
+      height: 28px;
+      width: 28px;
+      padding: 0;
+      border-radius: 7px;
+      font-size: 12px;
+      color: var(--muted);
+      background: transparent;
+      border-color: transparent;
+    }
+    .undo-mini:hover {
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    .empty {
+      padding: 80px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* Native Modal Player Dialog */
+    dialog:modal {
+      overscroll-behavior: contain;
+    }
+    dialog::backdrop {
+      overflow: hidden;
+      overscroll-behavior: contain;
+      background-color: rgba(5, 6, 8, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    #playerDialog {
+      width: min(1220px, 96vw);
+      max-height: 94vh;
+      margin: auto;
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    }
+    #playerDialog[open] {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .dlg-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .dlg-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 500;
+      flex: 1;
+      min-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dlg-stage {
+      background: #040507;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 360px;
+      max-height: 74vh;
+      overflow: hidden;
+    }
+    #mainVideo {
+      width: 100%;
+      height: 100%;
+      max-height: 74vh;
+      object-fit: contain;
+      background: #040507;
+    }
+
+    .dlg-foot {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .dlg-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .big-copy {
+      height: 38px;
+      padding: 0 20px;
+      border-radius: 9px;
+      font-size: 13.5px;
+    }
+
+    .kbd-hint {
+      width: 100%;
+      font-size: 11.5px;
+      color: var(--muted);
+      text-align: center;
+    }
+    kbd {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      color: var(--text);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 60;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 9px;
+      font-size: 12.5px;
+      font-weight: 500;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    @media (max-width: 900px) {
+      .topbar { padding: 8px 12px; }
+      .grid { padding: 12px; gap: 16px 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+      input[type="search"] { flex: 1 1 160px; }
+      .topbar-right { width: 100%; justify-content: space-between; margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <button type="button" class="path-pill" id="pathSummaryBtn" popovertarget="pathsPopover" title="Đổi thư mục Nguồn / Đích">
+      <span id="srcShortLabel">Nguồn</span>
+      <span class="path-arrow">→</span>
+      <span id="destShortLabel">Đích</span>
+    </button>
+
+    <button type="button" class="btn-ghost" id="openDestBtn" title="Mở thư mục Đích trong Finder" aria-label="Mở thư mục Đích trong Finder">Finder ↗</button>
+
+    <search class="filter-bar" aria-label="Bộ lọc và sắp xếp video">
+      <button type="button" id="folderFilterBtn" popovertarget="foldersPopover" title="Chọn nhiều thư mục hoặc ẩn thư mục không muốn xem">
+        <span id="folderBtnLabel">Thư mục</span>
+        <span class="path-arrow">▾</span>
+      </button>
+
+      <input id="searchInput" type="search" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Tìm tên, >100mb, 50-200mb…" aria-label="Tìm video theo tên hoặc dung lượng">
+
+      <select id="sizeSelect" aria-label="Lọc theo dung lượng">
+        <option value="all">Mọi dung lượng</option>
+        <option value="lt10">&lt; 10 MB</option>
+        <option value="10_50">10 – 50 MB</option>
+        <option value="50_150">50 – 150 MB</option>
+        <option value="150_300">150 – 300 MB</option>
+        <option value="300_500">300 – 500 MB</option>
+        <option value="gt500">&gt; 500 MB</option>
+        <option value="custom">Tuỳ chỉnh MB…</option>
+      </select>
+
+      <span id="customSizeWrap" class="size-range-wrap" hidden>
+        <label for="minMbInput">Từ</label>
+        <input id="minMbInput" type="text" inputmode="decimal" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="0">
+        <label for="maxMbInput">–</label>
+        <input id="maxMbInput" type="text" inputmode="decimal" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="∞">
+        <span>MB</span>
+      </span>
+
+      <div class="seg" role="group" aria-label="Lọc trạng thái copy">
+        <button type="button" data-filter="all" class="active">Tất cả</button>
+        <button type="button" data-filter="uncopied">Chưa chép</button>
+        <button type="button" data-filter="copied">Đã chép</button>
+      </div>
+
+      <select id="sortSelect" aria-label="Sắp xếp">
+        <option value="folder">Xếp: Thư mục A→Z</option>
+        <option value="largest">Xếp: Lớn → nhỏ</option>
+        <option value="smallest">Xếp: Nhỏ → lớn</option>
+        <option value="newest">Xếp: Mới → cũ</option>
+        <option value="oldest">Xếp: Cũ → mới</option>
+      </select>
+    </search>
+
+    <div class="topbar-right">
+      <div class="stats" role="status" aria-live="polite">
+        <span id="queueBadge" class="badge-queue" hidden>Đang chép…</span>
+        <span id="statsText">Đang tải…</span>
+      </div>
+      <button type="button" class="btn-primary" id="quickCullBtn">▶ Duyệt nhanh</button>
+    </div>
+  </header>
+
+  <div id="pathsPopover" class="anchored-popover" popover="auto" role="region" aria-label="Cấu hình thư mục nguồn và đích">
+    <div class="popover-field">
+      <label for="sourceInput">Thư mục nguồn (chỉ đọc)</label>
+      <div class="popover-row">
+        <input id="sourceInput" type="text" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <button type="button" id="pickSourceBtn">Chọn…</button>
+        <button type="button" id="rescanBtn">Quét lại</button>
+      </div>
+    </div>
+
+    <div class="popover-field">
+      <label for="destInput">Thư mục đích nhận video Copy</label>
+      <div class="popover-row">
+        <input id="destInput" type="text" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <button type="button" id="pickDestBtn">Chọn…</button>
+        <button type="button" class="btn-primary" id="saveDestBtn">Áp dụng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="foldersPopover" class="anchored-popover" popover="auto" role="region" aria-label="Chọn hoặc loại trừ thư mục">
+    <div class="folder-pop-head">
+      <input id="folderSearchInput" type="search" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Tìm thư mục để chọn / ẩn…" aria-label="Tìm thư mục">
+      <button type="button" class="btn-ghost" id="clearFoldersBtn" hidden>Đặt lại</button>
+    </div>
+    <div id="activeFolderChips" class="folder-chips" hidden></div>
+    <div id="folderList" class="folder-list"></div>
+  </div>
+
+  <main>
+    <div id="grid" class="grid"></div>
+    <div id="gridSentinel" style="height: 1px;"></div>
+    <div id="emptyState" class="empty" hidden>Không có video nào khớp bộ lọc hiện tại.</div>
+  </main>
+
+  <dialog id="playerDialog" closedby="any" aria-labelledby="playerTitle">
+    <div class="dlg-head">
+      <h2 id="playerTitle" class="dlg-title">Video</h2>
+
+      <div class="seg" id="speedGroup" role="group" aria-label="Tốc độ phát">
+        <button type="button" data-speed="1">1x</button>
+        <button type="button" data-speed="1.5" class="active">1.5x</button>
+        <button type="button" data-speed="2">2x</button>
+        <button type="button" data-speed="3">3x</button>
+      </div>
+
+      <button type="button" id="compatToggleBtn" title="Chuyển sang luồng nén tương thích nếu thiếu tiếng hoặc lỗi hình">Tương thích: Tắt</button>
+      <button type="button" id="revealSrcBtn">Finder</button>
+      <button type="button" class="btn-ghost" id="closePlayerBtn" aria-label="Đóng trình phát">✕</button>
+    </div>
+
+    <div class="dlg-stage">
+      <video id="mainVideo" controls playsinline width="1280" height="720" preload="auto"></video>
+    </div>
+
+    <div class="dlg-foot">
+      <div class="dlg-group">
+        <button type="button" id="prevBtn">← Trước</button>
+        <button type="button" id="skipForwardBtn">+3s</button>
+      </div>
+
+      <div class="dlg-group">
+        <button type="button" id="modalCopyNextBtn" class="btn-primary big-copy" autofocus>Copy &amp; Kế tiếp (C)</button>
+        <button type="button" id="modalUndoBtn" hidden>↺ Bỏ chép</button>
+      </div>
+
+      <div class="dlg-group">
+        <button type="button" id="nextBtn">Bỏ qua →</button>
+      </div>
+
+      <div class="kbd-hint">
+        <kbd>C</kbd> / <kbd>Enter</kbd> Copy &amp; kế tiếp · <kbd>←</kbd> <kbd>→</kbd> Lùi / Tới · <kbd>Space</kbd> Dừng / Phát · <kbd>L</kbd> +3s · <kbd>1</kbd>–<kbd>9</kbd> Tua 10%–90% · <kbd>Z</kbd> Hoàn tác
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script>
+    // Conditional polyfill for Popover API on older browsers per modern-web-guidance
+    if (!Object.hasOwn(HTMLElement.prototype, 'popover')) {
+      import('https://unpkg.com/@oddbird/popover-polyfill@latest/dist/popover.min.js').catch(() => {});
+    }
+
+    const state = {
+      sourcePath: '',
+      items: [],
+      filtered: [],
+      byId: new Map(),
+      filterMode: 'all',
+      includedFolders: new Set(),
+      excludedFolders: new Set(),
+      folderCatalog: [],
+      folderSearch: '',
+      query: '',
+      sizePreset: 'all',
+      minMb: '',
+      maxMb: '',
+      sort: 'folder',
+      speed: 1.5,
+      currentIndex: -1,
+      lastCopiedId: null,
+      compatMode: false,
+      copiedCount: 0,
+      copiedBytes: 0,
+      queueSize: 0,
+      pollTimer: null,
+      prefersReducedMotion: false,
+    };
+
+    const el = {
+      topbar: document.getElementById('topbar'),
+      pathsPopover: document.getElementById('pathsPopover'),
+      foldersPopover: document.getElementById('foldersPopover'),
+      folderFilterBtn: document.getElementById('folderFilterBtn'),
+      folderBtnLabel: document.getElementById('folderBtnLabel'),
+      folderSearchInput: document.getElementById('folderSearchInput'),
+      clearFoldersBtn: document.getElementById('clearFoldersBtn'),
+      activeFolderChips: document.getElementById('activeFolderChips'),
+      folderList: document.getElementById('folderList'),
+      srcShortLabel: document.getElementById('srcShortLabel'),
+      destShortLabel: document.getElementById('destShortLabel'),
+      sourceInput: document.getElementById('sourceInput'),
+      destInput: document.getElementById('destInput'),
+      pickSourceBtn: document.getElementById('pickSourceBtn'),
+      pickDestBtn: document.getElementById('pickDestBtn'),
+      rescanBtn: document.getElementById('rescanBtn'),
+      saveDestBtn: document.getElementById('saveDestBtn'),
+      openDestBtn: document.getElementById('openDestBtn'),
+      quickCullBtn: document.getElementById('quickCullBtn'),
+      searchInput: document.getElementById('searchInput'),
+      sizeSelect: document.getElementById('sizeSelect'),
+      customSizeWrap: document.getElementById('customSizeWrap'),
+      minMbInput: document.getElementById('minMbInput'),
+      maxMbInput: document.getElementById('maxMbInput'),
+      sortSelect: document.getElementById('sortSelect'),
+      speedGroup: document.getElementById('speedGroup'),
+      queueBadge: document.getElementById('queueBadge'),
+      statsText: document.getElementById('statsText'),
+      grid: document.getElementById('grid'),
+      emptyState: document.getElementById('emptyState'),
+      playerDialog: document.getElementById('playerDialog'),
+      playerTitle: document.getElementById('playerTitle'),
+      mainVideo: document.getElementById('mainVideo'),
+      compatToggleBtn: document.getElementById('compatToggleBtn'),
+      revealSrcBtn: document.getElementById('revealSrcBtn'),
+      closePlayerBtn: document.getElementById('closePlayerBtn'),
+      prevBtn: document.getElementById('prevBtn'),
+      nextBtn: document.getElementById('nextBtn'),
+      skipForwardBtn: document.getElementById('skipForwardBtn'),
+      modalCopyNextBtn: document.getElementById('modalCopyNextBtn'),
+      modalUndoBtn: document.getElementById('modalUndoBtn'),
+      toast: document.getElementById('toast'),
+    };
+
+    // Scroll-direction fallback where CSS scroll-state container queries aren't supported
+    if (!CSS.supports('container-type', 'scroll-state')) {
+      let lastY = scrollY;
+      addEventListener('scroll', () => {
+        const y = Math.max(0, Math.min(scrollY, document.documentElement.scrollHeight - innerHeight));
+        if (y === lastY) return;
+        el.topbar.classList.toggle('is-hidden', y > lastY && y > el.topbar.offsetHeight);
+        lastY = y;
+      }, { passive: true });
+    }
+
+    function syncPopoverKeepVisible() {
+      const anyOpen = el.pathsPopover.matches(':popover-open') || el.foldersPopover.matches(':popover-open');
+      el.topbar.classList.toggle('keep-visible', anyOpen);
+    }
+    el.pathsPopover.addEventListener('toggle', syncPopoverKeepVisible);
+    el.foldersPopover.addEventListener('toggle', (e) => {
+      syncPopoverKeepVisible();
+      if (e.newState === 'open') {
+        renderFolderPopover();
+        el.folderSearchInput.focus();
+      }
+    });
+
+    // Respect prefers-reduced-motion for hover autoplay previews
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    function syncReducedMotion(matches) {
+      state.prefersReducedMotion = matches;
+      if (matches) detachHoverPreview();
+    }
+    syncReducedMotion(reducedMotionQuery.matches);
+    reducedMotionQuery.addEventListener('change', (e) => syncReducedMotion(e.matches));
+
+    // Mandatory fallback for browsers without native <dialog closedby="any">
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      const outside = (e, dialog) => {
+        const r = dialog.getBoundingClientRect();
+        return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+      };
+      let pressedOutside = false;
+      el.playerDialog.addEventListener('pointerdown', (e) => {
+        pressedOutside = outside(e, el.playerDialog);
+      });
+      el.playerDialog.addEventListener('pointerup', (e) => {
+        if (pressedOutside && outside(e, el.playerDialog)) el.playerDialog.close();
+      });
+    }
+
+    el.playerDialog.addEventListener('close', () => {
+      el.playerDialog.returnValue = '';
+      el.mainVideo.pause();
+      el.mainVideo.removeAttribute('src');
+      el.mainVideo.load();
+    });
+
+    const hoverVideo = document.createElement('video');
+    hoverVideo.muted = true;
+    hoverVideo.playsInline = true;
+    hoverVideo.loop = true;
+    hoverVideo.preload = 'metadata';
+    hoverVideo.width = 320;
+    hoverVideo.height = 180;
+    let hoverTimer = null;
+    let activeHoverWrap = null;
+    let pendingSeekRatio = null;
+
+    hoverVideo.addEventListener('seeked', () => {
+      if (pendingSeekRatio !== null && Number.isFinite(hoverVideo.duration) && hoverVideo.duration > 0) {
+        const ratio = pendingSeekRatio;
+        pendingSeekRatio = null;
+        hoverVideo.currentTime = Math.min(hoverVideo.duration - 0.05, Math.max(0, ratio * hoverVideo.duration));
+      }
+    });
+
+    function detachHoverPreview() {
+      clearTimeout(hoverTimer);
+      pendingSeekRatio = null;
+      if (hoverVideo.parentNode) {
+        const bar = hoverVideo.parentNode.querySelector('.scrub-bar');
+        if (bar) bar.style.width = '0%';
+        hoverVideo.pause();
+        hoverVideo.removeAttribute('src');
+        hoverVideo.load();
+        hoverVideo.remove();
+      }
+      activeHoverWrap = null;
+    }
+
+    function shortFolderName(p) {
+      if (!p) return '—';
+      const trimmed = p.replace(/\/+$/, '');
+      const parts = trimmed.split('/').filter(Boolean);
+      return parts[parts.length - 1] || trimmed;
+    }
+
+    function fmtBytes(bytes) {
+      if (!bytes) return '0 MB';
+      if (bytes >= 1e9) return (bytes / 1e9).toFixed(2).replace(/\.?0+$/, '') + ' GB';
+      if (bytes >= 10e6) return Math.round(bytes / 1e6) + ' MB';
+      if (bytes >= 1e6) return (bytes / 1e6).toFixed(1).replace(/\.0$/, '') + ' MB';
+      return Math.max(1, Math.round(bytes / 1e3)) + ' KB';
+    }
+
+    const UNIT_MULT = { b: 1, kb: 1e3, mb: 1e6, gb: 1e9 };
+
+    function presetSizeBounds(preset, minMbStr, maxMbStr) {
+      const MB = 1e6;
+      switch (preset) {
+        case 'lt10': return [0, 10 * MB];
+        case '10_50': return [10 * MB, 50 * MB];
+        case '50_150': return [50 * MB, 150 * MB];
+        case '150_300': return [150 * MB, 300 * MB];
+        case '300_500': return [300 * MB, 500 * MB];
+        case 'gt500': return [500 * MB, Infinity];
+        case 'custom': {
+          const lo = parseFloat(String(minMbStr).replace(',', '.'));
+          const hi = parseFloat(String(maxMbStr).replace(',', '.'));
+          return [
+            Number.isFinite(lo) && lo >= 0 ? lo * MB : 0,
+            Number.isFinite(hi) && hi >= 0 ? hi * MB : Infinity,
+          ];
+        }
+        default: return [0, Infinity];
+      }
+    }
+
+    function parseSearchQuery(raw) {
+      if (!raw || !raw.trim()) return { textTokens: [], sizeChecks: [] };
+      const normalized = raw
+        .toLowerCase()
+        .replace(/(>=|<=|>|<|=)\s+(\d)/g, '$1$2')
+        .replace(/(\d)\s*-\s*(\d)/g, '$1-$2')
+        .replace(/(\d(?:\.\d+)?)\s+(kb|mb|gb)\b/g, '$1$2');
+
+      const textTokens = [];
+      const sizeChecks = [];
+
+      for (const tok of normalized.split(/\s+/).filter(Boolean)) {
+        let m = tok.match(/^(>=|<=|>|<|=)(\d+(?:\.\d+)?)(b|kb|mb|gb)?$/);
+        if (m) {
+          const op = m[1];
+          const mult = UNIT_MULT[m[3] || 'mb'];
+          const target = parseFloat(m[2]) * mult;
+          if (op === '>') sizeChecks.push((sz) => sz > target);
+          else if (op === '>=') sizeChecks.push((sz) => sz >= target);
+          else if (op === '<') sizeChecks.push((sz) => sz < target);
+          else if (op === '<=') sizeChecks.push((sz) => sz <= target);
+          else {
+            const tol = Math.max(0.6 * mult, target * 0.05);
+            sizeChecks.push((sz) => Math.abs(sz - target) <= tol);
+          }
+          continue;
+        }
+
+        m = tok.match(/^(\d+(?:\.\d+)?)(b|kb|mb|gb)?-(\d+(?:\.\d+)?)(b|kb|mb|gb)$/);
+        if (m) {
+          const u2 = m[4];
+          const u1 = m[2] || u2;
+          const lo = parseFloat(m[1]) * UNIT_MULT[u1];
+          const hi = parseFloat(m[3]) * UNIT_MULT[u2];
+          const minB = Math.min(lo, hi);
+          const maxB = Math.max(lo, hi);
+          sizeChecks.push((sz) => sz >= minB && sz <= maxB);
+          continue;
+        }
+
+        m = tok.match(/^(\d+(?:\.\d+)?)(kb|mb|gb)$/);
+        if (m) {
+          const mult = UNIT_MULT[m[2]];
+          const target = parseFloat(m[1]) * mult;
+          const tol = Math.max(0.6 * mult, target * 0.05);
+          sizeChecks.push((sz) => fmtBytes(sz).toLowerCase().replace(/\s+/g, '') === tok || Math.abs(sz - target) <= tol);
+          continue;
+        }
+
+        textTokens.push(tok);
+      }
+      return { textTokens, sizeChecks };
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      el.toast.textContent = msg;
+      el.toast.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { el.toast.hidden = true; }, 2000);
+    }
+
+    async function api(path, body) {
+      const res = await fetch(path, body !== undefined ? {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      } : undefined);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi máy chủ');
+      return data;
+    }
+
+    function folderMatchesPrefix(itemFolder, targetPrefix) {
+      if (targetPrefix === '.') return itemFolder === '.';
+      return itemFolder === targetPrefix || itemFolder.startsWith(targetPrefix + '/');
+    }
+
+    function itemPassesFolderRules(item) {
+      for (const ex of state.excludedFolders) {
+        if (folderMatchesPrefix(item.folder, ex)) return false;
+      }
+      if (state.includedFolders.size > 0) {
+        for (const inc of state.includedFolders) {
+          if (folderMatchesPrefix(item.folder, inc)) return true;
+        }
+        return false;
+      }
+      return true;
+    }
+
+    function buildFolderCatalog(items) {
+      const counts = new Map();
+      for (const it of items) {
+        if (it.folder === '.') {
+          counts.set('.', (counts.get('.') || 0) + 1);
+          continue;
+        }
+        const parts = it.folder.split('/');
+        let prefix = '';
+        for (let i = 0; i < parts.length; i++) {
+          prefix = i === 0 ? parts[0] : `${prefix}/${parts[i]}`;
+          counts.set(prefix, (counts.get(prefix) || 0) + 1);
+        }
+      }
+      const entries = [];
+      for (const [path, count] of counts.entries()) {
+        const depth = path === '.' ? 1 : path.split('/').length;
+        entries.push({ path, count, depth });
+      }
+      return entries;
+    }
+
+    function folderStorageKey(src) {
+      return `culler_folders:${src || 'default'}`;
+    }
+
+    function loadFolderRulesForSource(src, validPathsSet) {
+      state.includedFolders.clear();
+      state.excludedFolders.clear();
+      try {
+        const raw = localStorage.getItem(folderStorageKey(src));
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        for (const p of (parsed.inc || [])) {
+          if (validPathsSet.has(p)) state.includedFolders.add(p);
+        }
+        for (const p of (parsed.exc || [])) {
+          if (validPathsSet.has(p) && !state.includedFolders.has(p)) state.excludedFolders.add(p);
+        }
+      } catch {}
+    }
+
+    function saveFolderRules() {
+      try {
+        localStorage.setItem(folderStorageKey(state.sourcePath), JSON.stringify({
+          inc: [...state.includedFolders],
+          exc: [...state.excludedFolders],
+        }));
+      } catch {}
+    }
+
+    function syncFolderButtonLabel() {
+      const incN = state.includedFolders.size;
+      const excN = state.excludedFolders.size;
+      el.folderFilterBtn.classList.toggle('has-rules', incN > 0 || excN > 0);
+      if (incN === 0 && excN === 0) {
+        el.folderBtnLabel.textContent = `Thư mục (${state.folderCatalog.filter((e) => e.depth === 1).length})`;
+      } else if (incN > 0 && excN > 0) {
+        el.folderBtnLabel.textContent = `Thư mục (+${incN} · −${excN})`;
+      } else if (incN > 0) {
+        el.folderBtnLabel.textContent = `Thư mục (+${incN})`;
+      } else {
+        el.folderBtnLabel.textContent = `Thư mục (−${excN})`;
+      }
+      el.clearFoldersBtn.hidden = incN === 0 && excN === 0;
+    }
+
+    function renderFolderPopover() {
+      const incN = state.includedFolders.size;
+      const excN = state.excludedFolders.size;
+      el.clearFoldersBtn.hidden = incN === 0 && excN === 0;
+
+      if (incN === 0 && excN === 0) {
+        el.activeFolderChips.hidden = true;
+        el.activeFolderChips.innerHTML = '';
+      } else {
+        el.activeFolderChips.hidden = false;
+        const chips = [];
+        for (const p of state.includedFolders) {
+          const label = p === '.' ? '(Gốc)' : p;
+          chips.push(`<button type="button" class="f-chip is-inc" data-chip-clear="${escapeHtml(p)}" title="Bỏ chọn ${escapeHtml(label)}"><span>✓ ${escapeHtml(label)}</span> ×</button>`);
+        }
+        for (const p of state.excludedFolders) {
+          const label = p === '.' ? '(Gốc)' : p;
+          chips.push(`<button type="button" class="f-chip is-exc" data-chip-clear="${escapeHtml(p)}" title="Bỏ ẩn ${escapeHtml(label)}"><span>✕ ${escapeHtml(label)}</span> ×</button>`);
+        }
+        el.activeFolderChips.innerHTML = chips.join('');
+      }
+
+      const q = state.folderSearch.trim().toLowerCase();
+      const topList = state.folderCatalog
+        .filter((e) => e.depth === 1 && (!q || (e.path === '.' ? 'gốc' : e.path.toLowerCase()).includes(q)))
+        .sort((a, b) => b.count - a.count);
+
+      const subList = state.folderCatalog
+        .filter((e) => {
+          if (e.depth < 2) return false;
+          if (q) return e.path.toLowerCase().includes(q);
+          if (e.depth > 3) return false;
+          for (const ex of state.excludedFolders) {
+            if (ex !== e.path && folderMatchesPrefix(e.path, ex)) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
+        .slice(0, 140);
+
+      const renderRow = (entry) => {
+        const isInc = state.includedFolders.has(entry.path);
+        const isExc = state.excludedFolders.has(entry.path);
+        const label = entry.path === '.' ? '(Thư mục gốc)' : entry.path;
+        const indent = entry.depth > 1 && !q ? `style="padding-left:${8 + (entry.depth - 1) * 10}px"` : '';
+        return `
+          <div class="folder-row${isExc ? ' is-excluded' : ''}">
+            <button type="button" class="folder-inc-btn" ${indent} data-folder="${escapeHtml(entry.path)}" data-fmode="include" aria-pressed="${isInc}">
+              <span class="folder-mark">${isInc ? '✓' : '○'}</span>
+              <span class="folder-name" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+              <span class="folder-cnt">${entry.count}</span>
+            </button>
+            <button type="button" class="folder-exc-btn" data-folder="${escapeHtml(entry.path)}" data-fmode="exclude" aria-pressed="${isExc}" title="Ẩn / loại trừ thư mục này">
+              ${isExc ? '✕ Đã ẩn' : 'Ẩn'}
+            </button>
+          </div>
+        `;
+      };
+
+      let html = '';
+      if (topList.length) {
+        html += `<div class="folder-sec-label">Thư mục chính (tích chọn nhiều · bấm Ẩn để loại)</div>`;
+        html += topList.map(renderRow).join('');
+      }
+      if (subList.length) {
+        html += `<div class="folder-sec-label">Thư mục con</div>`;
+        html += subList.map(renderRow).join('');
+      }
+      if (!html) {
+        html = `<div class="folder-sec-label">Không tìm thấy thư mục khớp</div>`;
+      }
+      el.folderList.innerHTML = html;
+    }
+
+    function applyState(data) {
+      const nextSource = data.source || '';
+      const sourceChanged = nextSource !== state.sourcePath;
+      state.sourcePath = nextSource;
+      el.sourceInput.value = nextSource;
+      el.destInput.value = data.dest || '';
+      el.srcShortLabel.textContent = shortFolderName(nextSource);
+      el.destShortLabel.textContent = shortFolderName(data.dest);
+      state.items = data.items || [];
+      state.byId = new Map(state.items.map((it) => [it.id, it]));
+      state.copiedCount = data.copiedCount || 0;
+      state.copiedBytes = data.copiedBytes || 0;
+      state.queueSize = data.queueSize || 0;
+      state.folderCatalog = buildFolderCatalog(state.items);
+      const validPaths = new Set(state.folderCatalog.map((e) => e.path));
+      if (sourceChanged) {
+        loadFolderRulesForSource(nextSource, validPaths);
+      } else {
+        for (const p of [...state.includedFolders]) if (!validPaths.has(p)) state.includedFolders.delete(p);
+        for (const p of [...state.excludedFolders]) if (!validPaths.has(p)) state.excludedFolders.delete(p);
+      }
+      syncFolderButtonLabel();
+      if (el.foldersPopover.matches(':popover-open')) renderFolderPopover();
+      applyFiltersAndRender();
+      ensureCopyPolling();
+    }
+
+    function applyFiltersAndRender() {
+      const { textTokens, sizeChecks } = parseSearchQuery(state.query);
+      const [minBytes, maxBytes] = presetSizeBounds(state.sizePreset, state.minMb, state.maxMb);
+
+      let list = state.items.filter((it) => {
+        if (state.filterMode === 'copied' && it.status !== 'copied' && it.status !== 'queued') return false;
+        if (state.filterMode === 'uncopied' && (it.status === 'copied' || it.status === 'queued')) return false;
+        if (!itemPassesFolderRules(it)) return false;
+        if (it.size < minBytes || it.size > maxBytes) return false;
+        for (const fn of sizeChecks) {
+          if (!fn(it.size)) return false;
+        }
+        if (textTokens.length) {
+          const hay = it.rel.toLowerCase();
+          for (const t of textTokens) {
+            if (!hay.includes(t)) return false;
+          }
+        }
+        return true;
+      });
+
+      const byRel = (a, b) => a.rel.localeCompare(b.rel, undefined, { numeric: true });
+      if (state.sort === 'newest') {
+        list.sort((a, b) => (b.mtime - a.mtime) || byRel(a, b));
+      } else if (state.sort === 'oldest') {
+        list.sort((a, b) => (a.mtime - b.mtime) || byRel(a, b));
+      } else if (state.sort === 'largest') {
+        list.sort((a, b) => (b.size - a.size) || byRel(a, b));
+      } else if (state.sort === 'smallest') {
+        list.sort((a, b) => (a.size - b.size) || byRel(a, b));
+      } else {
+        list.sort(byRel);
+      }
+
+      state.filtered = list;
+      renderStats();
+      renderGrid();
+    }
+
+    function renderStats() {
+      const filteredBytes = state.filtered.reduce((acc, it) => acc + it.size, 0);
+      const countStr = state.filtered.length === state.items.length
+        ? `${state.items.length}`
+        : `${state.filtered.length}/${state.items.length}`;
+      el.statsText.textContent = `${countStr} clip (${fmtBytes(filteredBytes)}) · ✓ ${state.copiedCount}`;
+      if (state.queueSize > 0) {
+        el.queueBadge.hidden = false;
+        el.queueBadge.textContent = `Đang chép ${state.queueSize}`;
+      } else {
+        el.queueBadge.hidden = true;
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function buildCardHtml(item, idx) {
+      const isCopied = item.status === 'copied';
+      const isQueued = item.status === 'queued';
+      const deferredClass = idx >= 16 ? ' card-deferred' : '';
+      const copiedClass = isCopied ? ' is-copied' : '';
+
+      let imgAttrs = 'width="320" height="180"';
+      if (idx === 0) imgAttrs += ' fetchpriority="high"';
+      else if (idx >= 12) imgAttrs += ' loading="lazy"';
+
+      const btnLabel = isQueued ? 'Đang chép…' : (isCopied ? '✓ Đã chép' : 'Copy');
+      const folderLabel = item.folder === '.' ? 'Thư mục gốc' : item.folder;
+
+      return `
+        <article class="card${deferredClass}${copiedClass}" data-id="${item.id}" data-idx="${idx}">
+          <div class="thumb-wrap" data-action="open">
+            <img src="/api/thumb?id=${item.id}" alt="${escapeHtml(item.name)}" ${imgAttrs}>
+            <span class="pill-copied" ${isCopied ? '' : 'hidden'}>✓ Đã chép</span>
+            <span class="pill-size">${fmtBytes(item.size)}</span>
+            <div class="scrub-bar"></div>
+          </div>
+          <div class="card-body">
+            <div class="meta" title="${escapeHtml(item.rel)}">
+              <div class="meta-name">${escapeHtml(item.name)}</div>
+              <div class="meta-folder">${escapeHtml(folderLabel)}</div>
+            </div>
+            <div class="card-actions">
+              <button type="button" class="copy-btn" data-action="copy">${btnLabel}</button>
+              <button type="button" class="undo-mini" data-action="undo" title="Bỏ copy file này" aria-label="Bỏ copy ${escapeHtml(item.name)}" ${isCopied ? '' : 'hidden'}>↺</button>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    const PAGE_SIZE = 60;
+    let renderedCount = 0;
+
+    function renderGrid() {
+      detachHoverPreview();
+      renderedCount = 0;
+      el.grid.innerHTML = '';
+      if (state.filtered.length === 0) {
+        el.emptyState.hidden = false;
+        return;
+      }
+      el.emptyState.hidden = true;
+      appendNextChunk();
+    }
+
+    function appendNextChunk() {
+      if (renderedCount >= state.filtered.length) return;
+      const end = Math.min(state.filtered.length, renderedCount + PAGE_SIZE);
+      let html = '';
+      for (let i = renderedCount; i < end; i++) {
+        html += buildCardHtml(state.filtered[i], i);
+      }
+      el.grid.insertAdjacentHTML('beforeend', html);
+      renderedCount = end;
+    }
+
+    const sentinelObserver = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) appendNextChunk();
+    }, { rootMargin: '800px 0px' });
+    sentinelObserver.observe(document.getElementById('gridSentinel'));
+
+    function updateCardDom(id) {
+      const item = state.byId.get(id);
+      if (!item) return;
+      const card = el.grid.querySelector(`.card[data-id="${id}"]`);
+      if (!card) return;
+      const isCopied = item.status === 'copied';
+      const isQueued = item.status === 'queued';
+      card.classList.toggle('is-copied', isCopied);
+      const pill = card.querySelector('.pill-copied');
+      if (pill) pill.hidden = !isCopied;
+      const btn = card.querySelector('[data-action="copy"]');
+      if (btn) {
+        btn.textContent = isQueued ? 'Đang chép…' : (isCopied ? '✓ Đã chép' : 'Copy');
+      }
+      const undoBtn = card.querySelector('[data-action="undo"]');
+      if (undoBtn) undoBtn.hidden = !isCopied;
+    }
+
+    async function triggerCopy(id) {
+      const item = state.byId.get(id);
+      if (!item) return;
+      try {
+        const res = await api('/api/copy', { id });
+        item.status = res.status;
+        state.lastCopiedId = id;
+        if (res.status === 'queued') state.queueSize += 1;
+        updateCardDom(id);
+        syncModalButtons();
+        renderStats();
+        showToast(`Đang chép ${item.name}`);
+        ensureCopyPolling();
+      } catch (err) {
+        showToast(`Lỗi: ${err.message}`);
+      }
+    }
+
+    async function triggerUndo(id) {
+      const item = state.byId.get(id);
+      if (!item) return;
+      try {
+        await api('/api/uncopy', { id });
+        if (item.status === 'copied') {
+          state.copiedCount = Math.max(0, state.copiedCount - 1);
+          state.copiedBytes = Math.max(0, state.copiedBytes - item.size);
+        }
+        item.status = 'idle';
+        updateCardDom(id);
+        syncModalButtons();
+        renderStats();
+        showToast(`Đã bỏ chép ${item.name}`);
+      } catch (err) {
+        showToast(`Lỗi: ${err.message}`);
+      }
+    }
+
+    function ensureCopyPolling() {
+      if (state.pollTimer) return;
+      state.pollTimer = setInterval(async () => {
+        try {
+          const s = await api('/api/copy-status');
+          const copiedSet = new Set(s.copiedIds || []);
+          const queuedSet = new Set(s.queuedIds || []);
+          for (const it of state.items) {
+            const nextStatus = queuedSet.has(it.id) ? 'queued' : (copiedSet.has(it.id) ? 'copied' : 'idle');
+            if (it.status !== nextStatus) {
+              it.status = nextStatus;
+              updateCardDom(it.id);
+            }
+          }
+          state.copiedCount = s.copiedCount || 0;
+          state.copiedBytes = s.copiedBytes || 0;
+          state.queueSize = s.queueSize || 0;
+          renderStats();
+          syncModalButtons();
+          if (state.queueSize === 0) {
+            clearInterval(state.pollTimer);
+            state.pollTimer = null;
+          }
+        } catch {
+          clearInterval(state.pollTimer);
+          state.pollTimer = null;
+        }
+      }, 650);
+    }
+
+    el.grid.addEventListener('error', (e) => {
+      if (e.target && e.target.tagName === 'IMG') {
+        e.target.classList.add('thumb-missing');
+      }
+    }, true);
+
+    el.grid.addEventListener('click', (e) => {
+      const actionEl = e.target.closest('[data-action]');
+      if (!actionEl) return;
+      const card = actionEl.closest('.card');
+      if (!card) return;
+      const id = card.dataset.id;
+      const idx = Number(card.dataset.idx);
+      const action = actionEl.dataset.action;
+      if (action === 'copy') {
+        e.stopPropagation();
+        triggerCopy(id);
+      } else if (action === 'undo') {
+        e.stopPropagation();
+        triggerUndo(id);
+      } else if (action === 'open') {
+        openPlayerAt(idx);
+      }
+    });
+
+    el.grid.addEventListener('pointerover', (e) => {
+      if (state.prefersReducedMotion) return;
+      const wrap = e.target.closest('.thumb-wrap');
+      if (!wrap || wrap === activeHoverWrap) return;
+      detachHoverPreview();
+      activeHoverWrap = wrap;
+      const card = wrap.closest('.card');
+      if (!card) return;
+      const id = card.dataset.id;
+      hoverTimer = setTimeout(() => {
+        if (activeHoverWrap !== wrap) return;
+        hoverVideo.src = `/api/video?id=${id}`;
+        hoverVideo.playbackRate = state.speed;
+        wrap.appendChild(hoverVideo);
+        hoverVideo.play().catch(() => {});
+      }, 130);
+    });
+
+    el.grid.addEventListener('pointermove', (e) => {
+      if (!activeHoverWrap || !hoverVideo.parentNode) return;
+      const wrap = e.target.closest('.thumb-wrap');
+      if (wrap !== activeHoverWrap) return;
+      const rect = wrap.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / Math.max(1, rect.width)));
+      const bar = wrap.querySelector('.scrub-bar');
+      if (bar) bar.style.width = `${(ratio * 100).toFixed(1)}%`;
+      if (Number.isFinite(hoverVideo.duration) && hoverVideo.duration > 0) {
+        hoverVideo.pause();
+        if (hoverVideo.seeking) {
+          pendingSeekRatio = ratio;
+        } else {
+          hoverVideo.currentTime = Math.min(hoverVideo.duration - 0.05, ratio * hoverVideo.duration);
+        }
+      }
+    });
+
+    el.grid.addEventListener('pointerleave', detachHoverPreview);
+
+    function videoSrcFor(id, compat) {
+      return `/api/video?id=${id}${compat ? '&compat=1' : ''}`;
+    }
+
+    function openPlayerAt(idx) {
+      if (idx < 0 || idx >= state.filtered.length) return;
+      detachHoverPreview();
+      state.currentIndex = idx;
+      const item = state.filtered[idx];
+      el.playerTitle.textContent = `${idx + 1} / ${state.filtered.length}  ·  ${item.rel}  (${fmtBytes(item.size)})`;
+      syncModalButtons();
+
+      const useCompat = state.compatMode;
+      el.mainVideo.dataset.fallbackTried = useCompat ? '1' : '0';
+      el.mainVideo.src = videoSrcFor(item.id, useCompat);
+      el.mainVideo.playbackRate = state.speed;
+
+      if (!el.playerDialog.open) {
+        el.playerDialog.showModal();
+      }
+      el.mainVideo.play().catch(() => {});
+    }
+
+    el.mainVideo.addEventListener('loadedmetadata', () => {
+      el.mainVideo.playbackRate = state.speed;
+    });
+
+    el.mainVideo.addEventListener('error', () => {
+      const item = state.filtered[state.currentIndex];
+      if (!item || el.mainVideo.dataset.fallbackTried === '1') return;
+      el.mainVideo.dataset.fallbackTried = '1';
+      el.mainVideo.src = videoSrcFor(item.id, true);
+      el.mainVideo.playbackRate = state.speed;
+      el.mainVideo.play().catch(() => {});
+    });
+
+    function syncModalButtons() {
+      if (state.currentIndex < 0 || state.currentIndex >= state.filtered.length) return;
+      const item = state.filtered[state.currentIndex];
+      const isCopied = item.status === 'copied' || item.status === 'queued';
+      el.modalCopyNextBtn.textContent = isCopied
+        ? '✓ Đã chép · Qua kế tiếp (C)'
+        : 'Copy & Kế tiếp (C)';
+      el.modalUndoBtn.hidden = item.status !== 'copied';
+    }
+
+    function stepPlayer(delta) {
+      if (!state.filtered.length) return;
+      const next = Math.min(state.filtered.length - 1, Math.max(0, state.currentIndex + delta));
+      if (next === state.currentIndex && delta > 0) {
+        showToast('Đã tới video cuối danh sách');
+        return;
+      }
+      openPlayerAt(next);
+    }
+
+    async function copyAndAdvance() {
+      const item = state.filtered[state.currentIndex];
+      if (!item) return;
+      if (item.status !== 'copied' && item.status !== 'queued') {
+        await triggerCopy(item.id);
+      }
+      if (state.currentIndex < state.filtered.length - 1) {
+        openPlayerAt(state.currentIndex + 1);
+      } else {
+        showToast('Đã duyệt hết danh sách hiện tại');
+      }
+    }
+
+    el.prevBtn.addEventListener('click', () => stepPlayer(-1));
+    el.nextBtn.addEventListener('click', () => stepPlayer(1));
+    el.skipForwardBtn.addEventListener('click', () => {
+      el.mainVideo.currentTime = Math.min(el.mainVideo.duration || 0, el.mainVideo.currentTime + 3);
+    });
+    el.modalCopyNextBtn.addEventListener('click', copyAndAdvance);
+    el.modalUndoBtn.addEventListener('click', () => {
+      const item = state.filtered[state.currentIndex];
+      if (item) triggerUndo(item.id);
+    });
+    el.closePlayerBtn.addEventListener('click', () => el.playerDialog.close());
+    el.compatToggleBtn.addEventListener('click', () => {
+      state.compatMode = !state.compatMode;
+      el.compatToggleBtn.textContent = `Tương thích: ${state.compatMode ? 'Bật' : 'Tắt'}`;
+      if (el.playerDialog.open && state.currentIndex >= 0) openPlayerAt(state.currentIndex);
+    });
+    el.revealSrcBtn.addEventListener('click', () => {
+      const item = state.filtered[state.currentIndex];
+      if (item) api('/api/reveal', { id: item.id });
+    });
+
+    el.quickCullBtn.addEventListener('click', () => {
+      if (!state.filtered.length) return;
+      const firstUncopied = state.filtered.findIndex((it) => it.status === 'idle');
+      openPlayerAt(firstUncopied >= 0 ? firstUncopied : 0);
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (!el.playerDialog.open) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+      if (e.key === 'c' || e.key === 'C' || (e.key === 'Enter' && (tag !== 'BUTTON' || e.target === el.modalCopyNextBtn))) {
+        e.preventDefault();
+        copyAndAdvance();
+      } else if (e.key === 'ArrowRight' || e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        stepPlayer(1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        stepPlayer(-1);
+      } else if (e.key === ' ' && tag !== 'VIDEO') {
+        e.preventDefault();
+        if (el.mainVideo.paused) el.mainVideo.play().catch(() => {});
+        else el.mainVideo.pause();
+      } else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        el.mainVideo.currentTime = Math.min(el.mainVideo.duration || 0, el.mainVideo.currentTime + 3);
+      } else if (e.key === 'z' || e.key === 'Z') {
+        e.preventDefault();
+        const targetId = state.lastCopiedId || (state.filtered[state.currentIndex] && state.filtered[state.currentIndex].id);
+        if (targetId) triggerUndo(targetId);
+      } else if (e.key >= '1' && e.key <= '9' && Number.isFinite(el.mainVideo.duration)) {
+        e.preventDefault();
+        el.mainVideo.currentTime = (Number(e.key) / 10) * el.mainVideo.duration;
+      }
+    });
+
+    el.folderSearchInput.addEventListener('input', () => {
+      state.folderSearch = el.folderSearchInput.value;
+      renderFolderPopover();
+    });
+
+    el.clearFoldersBtn.addEventListener('click', () => {
+      state.includedFolders.clear();
+      state.excludedFolders.clear();
+      saveFolderRules();
+      syncFolderButtonLabel();
+      renderFolderPopover();
+      applyFiltersAndRender();
+    });
+
+    el.activeFolderChips.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-chip-clear]');
+      if (!btn) return;
+      const p = btn.dataset.chipClear;
+      state.includedFolders.delete(p);
+      state.excludedFolders.delete(p);
+      saveFolderRules();
+      syncFolderButtonLabel();
+      renderFolderPopover();
+      applyFiltersAndRender();
+    });
+
+    el.folderList.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-fmode]');
+      if (!btn) return;
+      const p = btn.dataset.folder;
+      const mode = btn.dataset.fmode;
+      if (mode === 'include') {
+        if (state.includedFolders.has(p)) {
+          state.includedFolders.delete(p);
+        } else {
+          state.includedFolders.add(p);
+          state.excludedFolders.delete(p);
+        }
+      } else if (mode === 'exclude') {
+        if (state.excludedFolders.has(p)) {
+          state.excludedFolders.delete(p);
+        } else {
+          state.excludedFolders.add(p);
+          state.includedFolders.delete(p);
+        }
+      }
+      saveFolderRules();
+      syncFolderButtonLabel();
+      renderFolderPopover();
+      applyFiltersAndRender();
+    });
+
+    el.searchInput.addEventListener('input', () => {
+      state.query = el.searchInput.value;
+      applyFiltersAndRender();
+    });
+    el.sizeSelect.addEventListener('change', () => {
+      state.sizePreset = el.sizeSelect.value;
+      el.customSizeWrap.hidden = state.sizePreset !== 'custom';
+      if (state.sizePreset === 'custom') el.minMbInput.focus();
+      applyFiltersAndRender();
+    });
+    el.minMbInput.addEventListener('input', () => {
+      state.minMb = el.minMbInput.value;
+      applyFiltersAndRender();
+    });
+    el.maxMbInput.addEventListener('input', () => {
+      state.maxMb = el.maxMbInput.value;
+      applyFiltersAndRender();
+    });
+    el.sortSelect.addEventListener('change', () => {
+      state.sort = el.sortSelect.value;
+      applyFiltersAndRender();
+    });
+
+    document.querySelectorAll('[data-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-filter]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.filterMode = btn.dataset.filter;
+        applyFiltersAndRender();
+      });
+    });
+
+    el.speedGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-speed]');
+      if (!btn) return;
+      el.speedGroup.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.speed = Number(btn.dataset.speed);
+      el.mainVideo.playbackRate = state.speed;
+      hoverVideo.playbackRate = state.speed;
+    });
+
+    async function saveConfig() {
+      try {
+        const data = await api('/api/config', {
+          source: el.sourceInput.value,
+          dest: el.destInput.value,
+        });
+        applyState(data);
+        if (typeof el.pathsPopover.hidePopover === 'function' && el.pathsPopover.matches(':popover-open')) {
+          el.pathsPopover.hidePopover();
+        }
+        showToast('Đã cập nhật thư mục');
+      } catch (err) {
+        showToast(err.message);
+      }
+    }
+
+    el.rescanBtn.addEventListener('click', saveConfig);
+    el.saveDestBtn.addEventListener('click', saveConfig);
+    el.destInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) saveConfig(); });
+    el.sourceInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) saveConfig(); });
+    el.openDestBtn.addEventListener('click', () => api('/api/reveal', {}));
+
+    el.pickSourceBtn.addEventListener('click', async () => {
+      const r = await api('/api/pick-folder', { kind: 'source' });
+      if (r.path) { el.sourceInput.value = r.path; saveConfig(); }
+    });
+    el.pickDestBtn.addEventListener('click', async () => {
+      const r = await api('/api/pick-folder', { kind: 'dest' });
+      if (r.path) { el.destInput.value = r.path; saveConfig(); }
+    });
+
+    api('/api/state').then(applyState).catch((err) => {
+      el.statsText.textContent = `Lỗi tải dữ liệu: ${err.message}`;
+    });
+  </script>
+</body>
+</html>
