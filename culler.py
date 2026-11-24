@@ -19,6 +19,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+# Ensure Finder / LaunchServices empty environments still find Homebrew ffmpeg and UTF-8 locales
+for _bin_dir in ("/opt/homebrew/bin", "/usr/local/bin"):
+    if _bin_dir not in os.environ.get("PATH", "").split(":"):
+        os.environ["PATH"] = f"{_bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin:/usr/sbin:/sbin')}"
+os.environ.setdefault("LANG", "en_US.UTF-8")
+os.environ.setdefault("LC_ALL", "en_US.UTF-8")
+
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".mts", ".webm", ".mpg", ".insv", ".3gp"}
 SKIP_DIRS = {"$RECYCLE.BIN", "System Volume Information", "node_modules", "__pycache__", "venv", ".venv"}
 MIME_OVERRIDES = {
@@ -279,7 +286,13 @@ def scan_videos(
 
 
 class CullerApp:
-    def __init__(self, source: str | None = None, dest: str | None = None, cache_dir: Path = CACHE_DIR):
+    def __init__(
+        self,
+        source: str | None = None,
+        dest: str | None = None,
+        cache_dir: Path = CACHE_DIR,
+        lazy_scan: bool = False,
+    ):
         self.cache_dir = cache_dir
         self.thumb_dir = cache_dir / "thumbs"
         self.state_file = cache_dir / "state.json"
@@ -294,6 +307,8 @@ class CullerApp:
         self.copied_map: dict[str, str] = saved.get("copied", {})
 
         self.lock = threading.RLock()
+        self.scan_lock = threading.Lock()
+        self.initial_scan_done = False
         self.items_by_id: dict[str, dict] = {}
         self.items_list: list[dict] = []
         self.queued_srcs: set[str] = set()
@@ -305,7 +320,8 @@ class CullerApp:
         self.worker = threading.Thread(target=self._copy_worker, daemon=True)
         self.worker.start()
 
-        self.rescan()
+        if not lazy_scan:
+            self.rescan()
 
     def _load_saved(self) -> dict:
         try:
@@ -325,16 +341,24 @@ class CullerApp:
         os.replace(tmp, self.state_file)
 
     def rescan(self) -> list[dict]:
-        with self.lock:
-            src = self.source
-            dst = self.dest
-            cmap = dict(self.copied_map)
-            qset = set(self.queued_srcs)
-        scanned = scan_videos(src, dst, cmap, qset)
-        with self.lock:
-            self.items_list = scanned
-            self.items_by_id = {it["id"]: it for it in scanned}
-        return scanned
+        with self.scan_lock:
+            with self.lock:
+                src = self.source
+                dst = self.dest
+                cmap = dict(self.copied_map)
+                qset = set(self.queued_srcs)
+            scanned = scan_videos(src, dst, cmap, qset)
+            with self.lock:
+                self.items_list = scanned
+                self.items_by_id = {it["id"]: it for it in scanned}
+                self.initial_scan_done = True
+            return scanned
+
+    def ensure_scanned_and_reconciled(self) -> None:
+        if not self.initial_scan_done:
+            self.rescan()
+        else:
+            self.reconcile_dest()
 
     def reconcile_dest(self) -> None:
         """Fast (~2ms) destination-first re-check without re-walking the USB SSD."""
@@ -611,7 +635,7 @@ def make_handler(app: CullerApp):
                     return
 
                 if route == "/api/state":
-                    app.reconcile_dest()
+                    app.ensure_scanned_and_reconciled()
                     self._send_json(app.state_payload())
                     return
 
@@ -769,11 +793,16 @@ def make_handler(app: CullerApp):
                     return
 
                 if route == "/api/pick-folder":
-                    prompt = "Chọn thư mục" if body.get("kind") != "dest" else "Chọn thư mục đích để Copy video"
+                    prompt = "Chọn thư mục nguồn" if body.get("kind") != "dest" else "Chọn thư mục đích để Copy video"
+                    apple_script = (
+                        'tell application (path to frontmost application as text) to '
+                        f'POSIX path of (choose folder with prompt "{prompt}")'
+                    )
                     proc = subprocess.run(
-                        ["osascript", "-e", f'POSIX path of (choose folder with prompt "{prompt}")'],
+                        ["/usr/bin/osascript", "-e", apple_script],
                         capture_output=True,
                         text=True,
+                        encoding="utf-8",
                     )
                     if proc.returncode != 0:
                         self._send_json({"cancelled": True})
@@ -817,9 +846,10 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--source", default=None)
     parser.add_argument("--dest", default=None)
+    parser.add_argument("--lazy-scan", action="store_true")
     args = parser.parse_args()
 
-    app = CullerApp(source=args.source, dest=args.dest)
+    app = CullerApp(source=args.source, dest=args.dest, lazy_scan=args.lazy_scan)
     server = None
     chosen_port = args.port
     for candidate in range(args.port, args.port + 20):

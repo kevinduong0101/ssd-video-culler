@@ -20,6 +20,16 @@ Zero-dependency macOS / Python local web app to rapidly preview, scrub, filter, 
 
 ## Quick Start
 
+### Option 1 — Native macOS Desktop App (`WKWebView`)
+
+```bash
+./macos/build_app.sh
+```
+
+Builds **`~/Desktop/Video Culler.app`** (native Apple Silicon `WKWebView` window with hardware `HEVC 10-bit` & `PCM 24-bit` playback, auto-starting and stopping the local server automatically).
+
+### Option 2 — CLI / Browser
+
 ```bash
 python3 culler.py --port 8789
 ```
