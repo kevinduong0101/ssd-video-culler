@@ -2,6 +2,8 @@
 
 Zero-dependency macOS / Python local web app to rapidly preview, scrub, filter, and 1-click copy 1,000+ camera videos (`4K H.264`, `HEVC 10-bit`, Fujifilm `PCM 24-bit .MOV`, `.MP4`) from an external SSD into a target folder.
 
+![SSD Video Culler Interface](assets/preview.jpg)
+
 ## Key Features
 
 - **Read-Only Source Safety**: Never modifies, moves, or deletes files on your source SSD.
@@ -42,3 +44,8 @@ Or double-click **`Start Video Culler.command`** in Finder.
 ```bash
 python3 test_culler.py
 ```
+
+## License
+
+[MIT](LICENSE)
+
