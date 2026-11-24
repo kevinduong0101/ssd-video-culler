@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+._*
+.env
+.env.*
+*.log
+*.culler_part
+.vscode/
+.idea/
